@@ -125,20 +125,20 @@ resource "aws_lb_listener_rule" "statistics" {
 # Target Group Attachments
 
 # HTTP Target Group에 ASG 연결
-resource "aws_autoscaling_attachment" "tg_http_asg" {
-  for_each               = toset(var.node_asg_names) # ← Plan 시점 확정
-  autoscaling_group_name = each.value
-  lb_target_group_arn    = aws_lb_target_group.http.arn
-  depends_on = [aws_eks_node_group.eks_node_group]
-}
+#resource "aws_autoscaling_attachment" "tg_http_asg" {
+#  for_each               = toset(var.node_asg_names) # ← Plan 시점 확정
+#  autoscaling_group_name = each.value
+#  lb_target_group_arn    = aws_lb_target_group.http.arn
+#  depends_on = [aws_eks_node_group.eks_node_group]
+#}
 
 # HTTPS Target Group에 ASG 연결
-resource "aws_autoscaling_attachment" "tg_https_asg" {
-  for_each               = toset(var.node_asg_names) # ← Plan 시점 확정
-  autoscaling_group_name = each.value
-  lb_target_group_arn    = aws_lb_target_group.https.arn
-  depends_on = [aws_eks_node_group.eks_node_group]
-}
+#resource "aws_autoscaling_attachment" "tg_https_asg" {
+#  for_each               = toset(var.node_asg_names) # ← Plan 시점 확정
+#  autoscaling_group_name = each.value
+#  lb_target_group_arn    = aws_lb_target_group.https.arn
+#  depends_on = [aws_eks_node_group.eks_node_group]
+#}
 
 # 통계 사이트 Target Group Attachment (단일 EC2)
 resource "aws_lb_target_group_attachment" "statistics" {
