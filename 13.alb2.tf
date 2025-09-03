@@ -1,10 +1,4 @@
 # Application Load Balancer
-variable "node_asg_names" {
-  description = "ALB Target Group에 연결할 ASG 이름 리스트 (EKS 노드그룹의 ASG명)"
-  type        = list(string)
-  default     = [] # tfvars에서 채워주세요
-}
-
 locals {
   # 임시로 고정된 NodePort 값 사용 (EKS 생성 후 실제 값으로 변경)
   nodeport_http  = 30080 # 임시 값 (nginx-ingress Service의 NodePort와 일치해야 함)
