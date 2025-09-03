@@ -31,11 +31,11 @@ variable "public_subnet_ids" {
 }
 
 # EKS 노드 그룹 ASG 이름 목록
-variable "node_group_asg_names" {
-  description = "EKS 노드 그룹 Auto Scaling Group 이름 목록"
-  type        = list(string)
-  default     = []
-}
+#variable "node_group_asg_names" {
+#  description = "EKS 노드 그룹 Auto Scaling Group 이름 목록"
+#  type        = list(string)
+#  default     = []
+#}
 
 # 워커 노드 보안 그룹 ID 목록 (자동으로 생성된 보안 그룹 사용)
 variable "worker_security_group_ids" {
@@ -126,4 +126,5 @@ variable "environment" {
   type        = string
   default     = "prod"
 }
+
 
