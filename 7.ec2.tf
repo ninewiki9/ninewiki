@@ -38,42 +38,7 @@ resource "aws_instance" "pub-ec2-bastion-2a" {
     #DB 테이블 설정용 설치
     sudo dnf install -y mariadb105
 
-    # AWS CLI 기본 설정 (IAM 역할을 통한 자동 인증)
-    mkdir -p /home/ec2-user/.aws
-    cat > /home/ec2-user/.aws/config << 'AWS_CONFIG'
-[default]
-region = ap-northeast-2
-output = json
-AWS_CONFIG
-
-    # AWS CLI 자격 증명 설정 (IAM 역할 사용)
-    cat > /home/ec2-user/.aws/credentials << 'AWS_CREDENTIALS'
-[default]
-# IAM 역할을 통해 자동으로 자격 증명이 제공됩니다
-# 별도의 access_key_id와 secret_access_key는 필요하지 않습니다
-AWS_CREDENTIALS
-
-    # 권한 설정
-    chown -R ec2-user:ec2-user /home/ec2-user/.aws
-    chmod 600 /home/ec2-user/.aws/credentials
-    chmod 644 /home/ec2-user/.aws/config
-
-    # AWS CLI 테스트
-    echo "AWS CLI 설정 완료"
-    echo "현재 리전: $(aws configure get region)"
-    echo "사용 가능한 EKS 클러스터:"
-    aws eks list-clusters --region ap-northeast-2 || echo "EKS 클러스터 목록 조회 실패 (IAM 권한 확인 필요)"
-
-    # EKS 클러스터 kubeconfig 자동 설정
-    echo "EKS 클러스터 kubeconfig 설정 중..."
-    aws eks update-kubeconfig --region ap-northeast-2 --name ninewiki-eks-cluster || echo "EKS 클러스터 연결 실패"
     
-    # kubectl 설정 확인
-    echo "kubectl 설정 확인:"
-    kubectl cluster-info || echo "kubectl 연결 실패"
-    kubectl get nodes || echo "노드 정보 조회 실패"
-    
-    echo "Bastion 서버 설정 완료!"
   EOF
 
   depends_on = [
@@ -113,7 +78,29 @@ resource "aws_iam_role_policy" "bastion_eks_policy" {
         Action = [
           "eks:DescribeCluster",
           "eks:ListClusters",
-          "eks:AccessKubernetesApi"
+          "eks:AccessKubernetesApi",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:DescribeAddon",
+          "eks:ListAddons"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeRouteTables"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:GetCallerIdentity"
         ]
         Resource = "*"
       }
