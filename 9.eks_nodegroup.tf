@@ -51,10 +51,6 @@ resource "aws_eks_node_group" "eks_node_group" {
   node_role_arn   = aws_iam_role.eks_node_group.arn
 
   subnet_ids = [aws_subnet.pri-subnet-2a.id, aws_subnet.pri-subnet-2c.id]
-
-  # 보안 그룹 설정 (워커 노드용)
-  remote_access_security_group_ids = [aws_security_group.eks_worker_sg.id]
-
   # 인스턴스 타입 설정
   instance_types = ["t3.medium"]
 
@@ -85,3 +81,4 @@ resource "aws_eks_node_group" "eks_node_group" {
     aws_security_group.eks_worker_sg
   ]
 }
+
