@@ -1,15 +1,8 @@
-
-#############################
 # Auto-discovery for dashboards
-#############################
-# EC2 instance that the dashboard should represent
-# 직접 aws_instance.statistic.id 사용
 locals {
   statistics_instance_id = aws_instance.statistic.id
 }
-
 # ALB created by your stack — 직접 aws_lb 리소스 참조
-
 locals {
   region_name      = "ap-northeast-2"
   alb_dimension    = aws_lb.this.arn_suffix  # e.g., app/ninewiki-alb/xxxxxxxxxxxxxxxx
@@ -17,9 +10,7 @@ locals {
   eks_cluster_name = "ninewiki-eks-cluster"           # EKS 클러스터 이름
 }
 
-#############################
 # Ninewiki Infra Dashboard (EC2, RDS)
-#############################
 resource "aws_cloudwatch_dashboard" "ninewiki_dashboard" {
   dashboard_name = "ninewiki-monitoring-dashboard"
 
@@ -163,10 +154,7 @@ resource "aws_cloudwatch_dashboard" "ninewiki_dashboard" {
 ]
   })
 }
-
-#############################
 # ALB-only Dashboard (auto-detected ALB)
-#############################
 resource "aws_cloudwatch_dashboard" "ninewiki_alb_dashboard" {
   dashboard_name = "ninewiki-alb-dashboard"
 
