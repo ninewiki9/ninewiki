@@ -150,4 +150,6 @@ terraform apply -target=aws_eks_node_group.eks_node_group
 ### EKS 노드그룹의 alb포트가 안열려있으므로 
 ### aws 콘솔에서 인스턴스에서 eks 노드의 인스턴스에 보안그룹
 ### 인바운드 그룹에 30000-32767 포트 지정해줘야함 대상 alb-sg
+##내일 업데이트 하고나서 없어집니다.
+
 
