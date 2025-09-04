@@ -14,32 +14,41 @@ resource "aws_instance" "pub-ec2-bastion-2a" {
   }
   
   user_data = <<-EOF
-    #!/bin/bash
-    # AWS CLI v2 설치
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
-    sudo ./aws/install
+#!/bin/bash
+set -e
+exec > >(tee /var/log/user-data.log) 2>&1
 
-    # kubectl 설치
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    chmod +x kubectl
-    sudo mv kubectl /usr/local/bin/
+echo "=== User Data Script 시작 ==="
+echo "시작 시간: $(date)"
 
-    # EKS 클러스터 설정
-    # aws eks update-kubeconfig --region ap-northeast-2 --name ninewiki-eks-cluster
-    #eksctl 설치
-    curl --silent --location "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-    sudo mv /tmp/eksctl /usr/local/bin
-    
+# AWS CLI v2 설치
+echo "AWS CLI v2 설치 중..."
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf awscliv2.zip aws/
 
-    #helm 설치
-    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+# kubectl 설치
+echo "kubectl 설치 중..."
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
 
-    #DB 테이블 설정용 설치
-    sudo dnf install -y mariadb105
+# eksctl 설치
+echo "eksctl 설치 중..."
+curl --silent --location "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
 
-    
-  EOF
+# helm 설치
+echo "helm 설치 중..."
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# MariaDB 설치
+echo "MariaDB 설치 중..."
+sudo dnf install -y mariadb105
+
+
+EOF
 
   depends_on = [
     aws_eks_node_group.eks_node_group,
