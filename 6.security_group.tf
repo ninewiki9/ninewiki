@@ -38,57 +38,13 @@ resource "aws_security_group" "statistics_sg" {
     Environment = var.environment
   }
 
-  # HTTP 접근 허용
+  # 통계 사이트 메인 포트 (ALB에서만 접근 허용)
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTPS 접근 허용
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # ALB에서 HTTP 트래픽 허용
-  ingress {
-    from_port       = 80
-    to_port         = 80
+    from_port       = 8000
+    to_port         = 8000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-  }
-
-  # ALB에서 HTTPS 트래픽 허용
-  ingress {
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  # ALB에서 8080 포트 트래픽 허용
-  ingress {
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    description     = "ALB access Statistic ec2"
   }
 
   # SSH 접근 허용 (Bastion에서만)
@@ -97,18 +53,16 @@ resource "aws_security_group" "statistics_sg" {
     to_port         = 22
     protocol        = "tcp"
     security_groups = [aws_security_group.bastion_sg.id]
+    description     = "Bastion SSH access"
   }
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+
+  # MySQL 접근 허용 (VPC 내부에서만)
   ingress {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.10.0.0/16"]
+    description = "MySQL access from VPC internal"
   }
 
   # 모든 아웃바운드 트래픽 허용
@@ -186,13 +140,13 @@ resource "aws_security_group" "eks_cluster_sg" {
   }
 }
 
-# EKS 워커 노드 보안 그룹
+# EKS 워커 노드 보안 그룹 / # 현재 사용 x
 resource "aws_security_group" "eks_worker_sg" {
   name        = "eks-worker-sg"
   description = "Security group for EKS worker nodes"
   vpc_id      = aws_vpc.ninewiki-vpc.id
 
-  # kubelet API (노드 간 통신)
+  # kubelet API (노드 간 통신) - 필수
   ingress {
     from_port = 10250
     to_port   = 10250
@@ -200,7 +154,7 @@ resource "aws_security_group" "eks_worker_sg" {
     self      = true
   }
 
-  # kube-proxy 헬스체크
+  # kube-proxy 헬스체크 - 필수
   ingress {
     from_port = 10256
     to_port   = 10256
@@ -208,49 +162,10 @@ resource "aws_security_group" "eks_worker_sg" {
     self      = true
   }
 
-  # NodePort 서비스 범위 (ALB에서 접근 허용)
+  # NodePort 서비스 범위 (ALB에서 접근 허용) - 필수
   ingress {
     from_port       = 30000
     to_port         = 32767
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  # CoreDNS
-  ingress {
-    from_port = 53
-    to_port   = 53
-    protocol  = "tcp"
-    self      = true
-  }
-
-  ingress {
-    from_port = 53
-    to_port   = 53
-    protocol  = "udp"
-    self      = true
-  }
-
-  # CoreDNS 메트릭스
-  ingress {
-    from_port = 9153
-    to_port   = 9153
-    protocol  = "tcp"
-    self      = true
-  }
-
-  # HTTP 트래픽 (ALB에서 접근 허용)
-  ingress {
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  # HTTPS 트래픽 (ALB에서 접근 허용)
-  ingress {
-    from_port       = 443
-    to_port         = 443
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -312,7 +227,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# EKS 클러스터에서 노드그룹으로의 통신 허용 (순환 참조 방지)
+# EKS 클러스터에서 노드그룹으로의 통신 허용
 resource "aws_security_group_rule" "nodes_from_cluster_10250" {
   type                     = "ingress"
   security_group_id        = aws_security_group.eks_worker_sg.id
