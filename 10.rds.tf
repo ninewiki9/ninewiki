@@ -87,11 +87,11 @@ resource "aws_db_instance" "default" {
   multi_az            = false # 단일 AZ (비용 절약)
   publicly_accessible = false # 외부 접속 허용 (개발/테스트용)
 
-  /*  # 백업 설정
-  backup_retention_period = 7
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "sun:04:00-sun:05:00"
-  */
+  # 백업 설정
+  #backup_retention_period = 7
+  #backup_window          = "03:00-04:00"
+  #maintenance_window     = "sun:04:00-sun:05:00"
+  
   # 암호화 설정
   storage_encrypted = false #aws kms키를 이용하여 암호화
 
