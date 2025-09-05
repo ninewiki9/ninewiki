@@ -110,8 +110,6 @@ terraform apply
 
 ### 민감한 정보 관리
 - `docker_password`는 환경 변수로 설정
-- `terraform.tfvars.local` 파일은 Git에 추가하지 않음
-- AWS 자격 증명은 AWS CLI 또는 환경 변수로 관리
 
 ### 접근 제어
 - Bastion 호스트를 통한 SSH 접근만 허용
@@ -148,6 +146,7 @@ terraform apply -target=aws_eks_node_group.eks_node_group
 ```
 
 ### Run 후에 aws configure 하고 aws eks update-kubeconfig --region ap-northeast-2 --name ninewiki-eks-cluster 로 kubectle 설정 만들어야함
+
 
 
 
