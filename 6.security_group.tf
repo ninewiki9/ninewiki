@@ -169,7 +169,12 @@ resource "aws_security_group" "eks_worker_sg" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
-
+  ingress {
+    from_port = 3306
+    to_port   = 3306
+    protocol  = "tcp"
+    security groups = [aws_security_group.db_sb.id]
+  }
 
 
   # 모든 아웃바운드 트래픽 허용
@@ -246,3 +251,4 @@ resource "aws_security_group_rule" "nodes_from_cluster_443" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.eks_cluster_sg.id
 }
+
