@@ -97,8 +97,9 @@ terraform apply
 
 ### 네트워킹
 - **VPC CIDR**: `10.10.0.0/16`
-- **퍼블릭 서브넷**: `10.10.1.0/24`, `10.10.3.0/24`
-- **프라이빗 서브넷**: `10.10.2.0/24`, `10.10.4.0/24`
+- **퍼블릭 서브넷**: `10.10.1.0/24`, `10.10.3.0/24`,`10.10.7.0/24`, `10.10.8.0/24` 
+                            bastion, 통계사이트용 2개,alb용 2개
+- **프라이빗 서브넷**: `10.10.2.0/24`, `10.10.4.0/24`,`10.10.5.0/24`, `10.10.6.0/24` db,eks용 각각 2개씩 
 
 ### 보안
 - **Bastion 호스트**: SSH 접근 (포트 22)
@@ -110,6 +111,8 @@ terraform apply
 
 ### 민감한 정보 관리
 - `docker_password`는 환경 변수로 설정
+- `terraform.tfvars.local` 파일은 Git에 추가하지 않음
+
 
 ### 접근 제어
 - Bastion 호스트를 통한 SSH 접근만 허용
@@ -145,9 +148,43 @@ terraform apply
 terraform apply -target=aws_eks_node_group.eks_node_group
 ```
 
-### Run 후에 aws configure 하고 aws eks update-kubeconfig --region ap-northeast-2 --name ninewiki-eks-cluster 로 kubectle 설정 만들어야함
+### EKS 노드그룹의 alb포트가 안열려있으므로 30000-32767 포트 지정해줘야함 
+### aws configure 해주고 아래 코드 실행행
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm upgrade -i ingress ingress-nginx/ingress-nginx \
+  --namespace default \
+  --set controller.service.type=NodePort \
+  --set controller.service.nodePorts.http=30080 \
+  --set controller.service.nodePorts.https=30443
 
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+kubectl -n kube-system patch svc metrics-server --type=json -p='[
+  {"op":"replace","path":"/spec/ports/0/name","value":"https"},
+  {"op":"replace","path":"/spec/ports/0/port","value":443},
+  {"op":"replace","path":"/spec/ports/0/targetPort","value":4443},
+  {"op":"replace","path":"/spec/selector","value":{"k8s-app":"metrics-server"}}
+]'
+kubectl -n kube-system patch deploy metrics-server --type='json' -p='[
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--secure-port=4443"},
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP"}
+]'
+kubectl -n kube-system patch deploy metrics-server --type='json' -p='[
+  {"op":"add","path":"/spec/template/spec/containers/0/ports","value":[{"containerPort":4443,"name":"https"}]},
+  {"op":"add","path":"/spec/template/spec/containers/0/readinessProbe","value":{
+    "httpGet":{"path":"/readyz","port":"https","scheme":"HTTPS"},
+    "periodSeconds":10,"timeoutSeconds":5,"failureThreshold":3
+  }},
+  {"op":"add","path":"/spec/template/spec/containers/0/livenessProbe","value":{
+    "httpGet":{"path":"/livez","port":"https","scheme":"HTTPS"},
+    "periodSeconds":10,"timeoutSeconds":5,"failureThreshold":3
+  }}
+]'
+kubectl -n kube-system rollout restart deploy metrics-server
 
-
-
-
+wget https://blue-project.s3.ap-northeast-2.amazonaws.com/k8s.tar
+tar xvfa k8s.tar -C .
+kubectl apply -f ./k8s/.
