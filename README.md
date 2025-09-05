@@ -147,7 +147,7 @@ terraform apply
 # 특정 리소스 타겟팅
 terraform apply -target=aws_eks_node_group.eks_node_group
 ```
-
+### Route53에 생성되는 NS 값 가비아에 등록(가비아를 사용하는 경우)
 ### EKS 노드그룹의 alb포트가 안열려있으므로 30000-32767 포트 지정해줘야함 
 ### aws configure 해주고 아래 코드 실행행
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -188,3 +188,4 @@ kubectl -n kube-system rollout restart deploy metrics-server
 wget https://blue-project.s3.ap-northeast-2.amazonaws.com/k8s.tar
 tar xvfa k8s.tar -C .
 kubectl apply -f ./k8s/.
+
