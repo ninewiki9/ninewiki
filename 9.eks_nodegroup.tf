@@ -1,4 +1,4 @@
-# EKS 노드 그룹 IAM 역할
+# node group IAM role 생성
 resource "aws_iam_role" "eks_node_group" {
   name = "eks-node-group-role"
 
@@ -16,126 +16,139 @@ resource "aws_iam_role" "eks_node_group" {
   })
 }
 
-# EKS 워커 노드 정책 연결
+#  IAM role에 정책 부착
 resource "aws_iam_role_policy_attachment" "eks_node_group_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy" # EKS 워커 노드가 EKS 클러스터와 통신할 수 있는 권한
   role       = aws_iam_role.eks_node_group.name
 }
 
 resource "aws_iam_role_policy_attachment" "CNI" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy" # Amazon VPC CNI 플러그인이 ENI를 관리할 수 있는 권한
   role       = aws_iam_role.eks_node_group.name
 }
 
 resource "aws_iam_role_policy_attachment" "ecr" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly" # ECR에서 이미지를 가져올 수 있는 읽기 권한
   role       = aws_iam_role.eks_node_group.name
 }
 
-# CloudWatch Agent 정책 연결
+
+
+# EKS 노드그룹용 CloudWatch Agent 정책 연결
 resource "aws_iam_role_policy_attachment" "eks_cw_agent_policy" {
   role       = aws_iam_role.eks_node_group.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
-# X-Ray Write Only Access 정책 연결
+# EKS 노드그룹용 CloudWatch Agent 설정 (SSM Parameter Store)
+resource "aws_ssm_parameter" "eks_cloudwatch_agent_config" {
+  name = "/eks-cloudwatch-agent/config"
+  type = "String"
+  value = jsonencode({
+    agent = {
+      metrics_collection_interval = 60
+      region                      = "ap-northeast-2"
+      debug                       = true
+    }
+    metrics = {
+      namespace = "NineWiki/EKS"
+      metrics_collected = {
+        mem = {
+          measurement                 = ["mem_used_percent"]
+          metrics_collection_interval = 60
+          resources                   = ["*"]
+        }
+        cpu = {
+          measurement                 = ["cpu_usage_user", "cpu_usage_system", "cpu_usage_idle"]
+          metrics_collection_interval = 60
+          resources                   = ["*"]
+        }
+      }
+    }
+  })
+
+  tags = {
+    Name    = "eks-cloudwatch-agent-config"
+    Project = "ninewiki-test"
+  }
+}
+
+# EKS 노드그룹용 SSM Parameter Store 접근 정책
+resource "aws_iam_role_policy" "eks_ssm_policy" {
+  name = "eks-ssm-policy"
+  role = aws_iam_role.eks_node_group.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParametersByPath"
+        ]
+        Resource = [
+          "arn:aws:ssm:ap-northeast-2:*:parameter/eks/*",
+          "arn:aws:ssm:ap-northeast-2:*:parameter/cloudwatch-agent/*"
+        ]
+      }
+    ]
+  })
+}
+
+# EKS 노드그룹용 X-Ray Write Only Access 정책 연결
 resource "aws_iam_role_policy_attachment" "eks_xray_write_policy" {
   role       = aws_iam_role.eks_node_group.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess"
 }
 
-# EKS 최적화 AMI 데이터 소스
-data "aws_ami" "eks_optimized" {
-  most_recent = true
-  owners      = ["amazon"]
+# EKS 노드그룹용 CloudWatch Agent 추가 정책
+resource "aws_iam_role_policy" "eks_cloudwatch_policy" {
+  name = "eks-cloudwatch-policy"
+  role = aws_iam_role.eks_node_group.id
 
-  filter {
-    name   = "name"
-    values = ["amazon-eks-node-1.28-v*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData",
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
-# EKS 노드 그룹용 런치 템플릿
-resource "aws_launch_template" "eks_node_group" {
-  name_prefix            = "eks-node-group-"
-  description            = "EKS Node Group Launch Template"
-  update_default_version = true
 
-  # 네트워크 인터페이스 설정
-  network_interfaces {
-    associate_public_ip_address = false
-    delete_on_termination       = true
-    security_groups             = [aws_security_group.eks_worker_sg.id]
-  }
 
-  # EKS 최적화 AMI 사용
-  image_id = data.aws_ami.eks_optimized.id
+# EKS CloudWatch Observability Add-on
+resource "aws_eks_addon" "cw_observability" {
+  cluster_name = aws_eks_cluster.eks_master.name
+  addon_name   = "amazon-cloudwatch-observability"
 
-  # 인스턴스 타입 설정
-  instance_type = "t3.medium"
+  depends_on = [
+    aws_eks_cluster.eks_master,
+    aws_eks_node_group.eks_node_group
+  ]
 
-  # 사용자 데이터 (EKS 부트스트랩: 런치 템플릿으로 만든 인스턴스를 eks 노드에 가입시킴)
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    cluster_name = aws_eks_cluster.eks_master.name
-    bootstrap_extra_args = "--kubelet-extra-args '--node-labels=eks.amazonaws.com/nodegroup=ninewiki-eks-node-group'"
-  }))
-
-  # 인스턴스 태그 설정
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "eks-node-group-instance"
-      Project = "ninewiki"
-      Environment = "production"
-      Owner = "ninewiki-team"
-      "kubernetes.io/cluster/${aws_eks_cluster.eks_master.name}" = "owned"
-      "kubernetes.io/role/node" = "1"
-    }
-  }
-
-  # 볼륨 태그 설정
-  tag_specifications {
-    resource_type = "volume"
-    tags = {
-      Name = "eks-node-group-volume"
-      Project = "ninewiki"
-      Environment = "production"
-      Owner = "ninewiki-team"
-      "kubernetes.io/cluster/${aws_eks_cluster.eks_master.name}" = "owned"
-    }
-  }
-
-  # 네트워크 인터페이스 태그 설정
-  tag_specifications {
-    resource_type = "network-interface"
-    tags = {
-      Name = "eks-node-group-eni"
-      Project = "ninewiki"
-      Environment = "production"
-      "kubernetes.io/cluster/${aws_eks_cluster.eks_master.name}" = "owned"
-    }
-  }
-
-  # 런치 템플릿 자체 태그
   tags = {
-    Name = "eks-node-group-lt"
-    Project = "ninewiki"
-    Environment = "production"
-    Owner = "ninewiki-team"
-    "kubernetes.io/cluster/${aws_eks_cluster.eks_master.name}" = "owned"
-  }
-
-  lifecycle {
-    create_before_destroy = true
+    Name    = "eks-cloudwatch-observability"
+    Project = "ninewiki-test"
   }
 }
 
-# EKS 노드 그룹 생성
+# EKS CloudWatch Observability Add-on만 사용 (자동으로 CloudWatch Agent 설치)
+# 추가 Kubernetes 리소스는 EKS Add-on에서 자동 관리됨
+
+#node group 생성
 resource "aws_eks_node_group" "eks_node_group" {
   cluster_name    = aws_eks_cluster.eks_master.name
   node_group_name = "ninewiki-eks-node-group"
@@ -143,11 +156,8 @@ resource "aws_eks_node_group" "eks_node_group" {
 
   subnet_ids = [aws_subnet.pri-subnet-2a.id, aws_subnet.pri-subnet-2c.id]
 
-  # 런치 템플릿 사용
-  launch_template {
-    id      = aws_launch_template.eks_node_group.id
-    version = aws_launch_template.eks_node_group.latest_version
-  }
+  # 인스턴스 타입 설정
+  instance_types = ["t3.medium"]
 
   # IMDSv2 설정
   update_config {
@@ -162,7 +172,7 @@ resource "aws_eks_node_group" "eks_node_group" {
 
   tags = {
     Name        = "ninewiki-eks-worker-node"
-    Project     = "ninewiki"
+    Project     = "ninewiki-test"
     Environment = "production"
     Owner       = "ninewiki-team"
   }
@@ -173,7 +183,16 @@ resource "aws_eks_node_group" "eks_node_group" {
     aws_iam_role_policy_attachment.ecr,
     aws_iam_role_policy_attachment.eks_cw_agent_policy,
     aws_iam_role_policy_attachment.eks_xray_write_policy,
-    aws_security_group.eks_worker_sg,
-    aws_launch_template.eks_node_group
+    aws_iam_role_policy.eks_ssm_policy,
+    aws_iam_role_policy.eks_cloudwatch_policy,
+    aws_ssm_parameter.eks_cloudwatch_agent_config
   ]
 }
+
+
+
+
+
+
+
+
